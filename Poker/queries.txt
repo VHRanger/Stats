@@ -1,0 +1,71 @@
+//output to csv
+
+COPY (SELECT * from users) To '___filepath_here___' With CSV;
+
+
+
+
+
+//
+//custom query of total hands by date
+//First one works, second for readability
+//hands_date.csv query
+//
+
+\copy (SELECT date_trunc('day', cash_hand_player_statistics.date_played ) AS "Day" ,                     (sum((case when(cash_hand_player_statistics.id_hand > 0) then  1 else  0 end))) as "hands"           FROM cash_hand_player_statistics           GROUP BY 1            ORDER BY 1) To 'C:\Users\Matt\Desktop\hhout\hands_date.csv' With CSV
+
+\copy (SELECT date_trunc('day', cash_hand_player_statistics.date_played ) AS "Day" ,
+                      (sum((case when(cash_hand_player_statistics.id_hand > 0) then  1 else  0 end))) as "hands" 
+           FROM cash_hand_player_statistics
+           GROUP BY 1 
+           ORDER BY 1
+) To 'C:\Users\Matt\Desktop\hhout\hands_date.csv' With CSV;
+
+
+
+
+
+
+//
+// Query in stats
+//
+
+\copy (SELECT date_trunc('hour', cash_hand_player_statistics.date_played ) AS "Hour" ,
+                    (sum(CAST( (cash_hand_player_statistics.val_curr_conv * cash_hand_player_statistics.amt_won) 
+                            AS numeric ))) as "amt_won_curr_conv",
+                    (sum((case when(cash_hand_player_statistics.id_hand > 0) then  1 else  0 end))) as "hands", 
+            (sum(( (CASE WHEN ( cash_hand_summary.amt_pot) <> 0 
+                        THEN ((cash_hand_player_statistics.amt_bet_ttl * 1.0 )/( cash_hand_summary.amt_pot)) 
+                        ELSE 0 END) ) * cash_hand_summary.amt_rake)) as "amt_rake_weighted_contributed",
+            (cash_limit.limit_currency) as "limit_currency",
+            (sum(CAST( ((case when(cash_hand_player_statistics.amt_bet_ttl > 0) 
+                     then  cash_hand_player_statistics.val_curr_conv * 
+                     ( (CASE WHEN ( cash_hand_summary.amt_pot) <> 0 
+                     THEN ((cash_hand_player_statistics.amt_bet_ttl * 1.0 )/( cash_hand_summary.amt_pot)) 
+                     ELSE 0 END) ) * cash_hand_summary.amt_rake else  0 end)) 
+                     AS numeric ))) as "amt_rake_weighted_contributed_curr_conv" 
+FROM       cash_hand_player_statistics , cash_hand_summary, cash_limit 
+WHERE  (cash_hand_summary.id_hand = cash_hand_player_statistics.id_hand  
+             AND cash_hand_summary.id_limit = cash_hand_player_statistics.id_limit)  
+             AND (cash_limit.id_limit = cash_hand_player_statistics.id_limit)  
+             AND (cash_limit.id_limit = cash_hand_summary.id_limit)
+             AND (((((cash_hand_summary.id_gametype = 1)))))AND (((((cash_hand_summary.id_site in (100))))))             
+         GROUP BY 1  
+         ORDER BY 1
+) To 'C:\Users\Matt\Desktop\hhout\stats_hour2.csv' With CSV
+
+
+
+
+\copy (SELECT date_trunc('hour', cash_hand_player_statistics.date_played ) AS "hour" , (sum(CAST( (cash_hand_player_statistics.val_curr_conv * cash_hand_player_statistics.amt_won)  AS numeric ))) as "amt_won_curr_conv", (sum((case when(cash_hand_player_statistics.id_hand > 0) then  1 else  0 end))) as "hands",  (sum(( (CASE WHEN ( cash_hand_summary.amt_pot) <> 0  THEN ((cash_hand_player_statistics.amt_bet_ttl * 1.0 )/( cash_hand_summary.amt_pot))  ELSE 0 END) ) * cash_hand_summary.amt_rake)) as "amt_rake_weighted_contributed", (sum(CAST( ((case when(cash_hand_player_statistics.amt_bet_ttl > 0)  then  cash_hand_player_statistics.val_curr_conv *  ( (CASE WHEN ( cash_hand_summary.amt_pot) <> 0  THEN ((cash_hand_player_statistics.amt_bet_ttl * 1.0 )/( cash_hand_summary.amt_pot))  ELSE 0 END) ) * cash_hand_summary.amt_rake else  0 end))  AS numeric ))) as "amt_rake_weighted_contributed_curr_conv"  FROM       cash_hand_player_statistics , cash_hand_summary, cash_limit  WHERE  (cash_hand_summary.id_hand = cash_hand_player_statistics.id_hand   AND cash_hand_summary.id_limit = cash_hand_player_statistics.id_limit)   AND (cash_limit.id_limit = cash_hand_player_statistics.id_limit)   AND (cash_limit.id_limit = cash_hand_summary.id_limit)  AND (((((cash_hand_summary.id_gametype = 1)))))AND (((((cash_hand_summary.id_site in (100))))))   GROUP BY 1    ORDER BY 1 ) To 'C:\Users\Matt\Desktop\hhout\stats_hour2.csv' With CSV
+
+
+
+
+
+
+//
+// Sessions PT4 Query
+//
+
+SELECT (cash_hand_player_statistics.id_player) as "id_player", (player_real.id_site) as "id_site", (player.player_name) as "str_player_name", (sum(CAST( (cash_hand_player_statistics.val_curr_conv * cash_hand_player_statistics.amt_won) AS numeric ))) as "amt_won_curr_conv", (sum((case when(cash_hand_player_statistics.id_hand > 0) then  1 else  0 end))) as "cnt_hands", (count( distinct cash_hand_player_statistics.id_session)) as "cnt_sessions", (timezone('UTC',  cash_table_session_summary.date_start  + INTERVAL '0 HOURS')) as "session_date_start", (timezone('UTC',  cash_table_session_summary.date_end  + INTERVAL '0 HOURS')) as "session_date_end" FROM         cash_hand_player_statistics , player, cash_table_session_summary, player player_real WHERE  (player.id_player = cash_hand_player_statistics.id_player)  AND (cash_hand_player_statistics.id_session = cash_table_session_summary.id_session)  AND (player_real.id_player = cash_hand_player_statistics.id_player_real)  AND (player.id_player = cash_table_session_summary.id_player)          AND ((((((((cash_table_session_summary.date_start >= '2014/09/01 04:00:00' AND cash_table_session_summary.date_start <= '2015/03/01 04:59:59')))))AND ((((cash_table_session_summary.id_site in (100)))))))AND ((cash_hand_player_statistics.id_gametype IN (1))))  GROUP BY (cash_hand_player_statistics.id_player), (player_real.id_site), (player.player_name), (timezone('UTC',  cash_table_session_summary.date_start  + INTERVAL '0 HOURS')), (timezone('UTC',  cash_table_session_summary.date_end  + INTERVAL '0 HOURS')) 
